@@ -1,0 +1,3 @@
+add_executable(ConvertInputFormat main.cpp)
+
+target_link_libraries(ConvertInputFormat PRIVATE energyplusparser project_options project_warnings)
