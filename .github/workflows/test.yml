@@ -1,10 +1,9 @@
-name: epJSON dependency
+name: Test CMake
 
 on:
   push
 
 env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   BUILD_TYPE: Release
 
 jobs:
@@ -27,11 +26,12 @@ jobs:
     - name: Setup
       shell: bash
       run: |
+        pip install rich
         cmake -E make_directory ./build/
         if [ "$RUNNER_OS" == "Windows" ]; then
-          echo "Setting CMAKE_GENERATOR options equivalent to ='-G \"Visual Studio 16 2019\" -A ${{ matrix.CMAKE_GENERATOR_PLATFORM }}'"
-          echo CMAKE_GENERATOR='Visual Studio 16 2019' >> $GITHUB_ENV
-          echo CMAKE_GENERATOR_PLATFORM=${{ matrix.CMAKE_GENERATOR_PLATFORM }} >> $GITHUB_ENV
+          echo "Setting CMAKE_GENERATOR options equivalent to ='-G \"Visual Studio 17 2022\" -A x64'"
+          echo CMAKE_GENERATOR='Visual Studio 17 2022' >> $GITHUB_ENV
+          echo CMAKE_GENERATOR_PLATFORM=x64 >> $GITHUB_ENV
           choco install ninja
         fi;
 
@@ -46,47 +46,67 @@ jobs:
         from pathlib import Path
         import subprocess
 
-        EP_ROOT = Path('.').resolve()
-        EP_BUILD_DIR = Path('./build').resolve()
-        EXPECTED_MSGS = ['Generating the epJSON schema!', 'generating embedded epJSON schema']
+        EP_ROOT = Path(".").resolve()
+        EP_BUILD_DIR = Path("./build").resolve()
+        EXPECTED_MSGS = ["Generating the epJSON schema!", "generating embedded epJSON schema"]
+
 
         def build():
             lines = subprocess.check_output(
-                ["cmake", "--build", str(EP_BUILD_DIR), '--config', 'Release', '--target', 'epjson_schema', 'embedded_epjson_source'],
-                encoding='utf-8', stderr=subprocess.STDOUT).splitlines()
+                [
+                    "cmake",
+                    "--build",
+                    str(EP_BUILD_DIR),
+                    "--config",
+                    "Release",
+                ],
+                encoding="utf-8",
+                stderr=subprocess.STDOUT,
+            ).splitlines()
             return lines
-        IDD_IN = EP_ROOT / 'idd/Energy+.idd.in'
+
+
+        IDD_IN = EP_ROOT / "idd/Energy+.idd.in"
         assert IDD_IN.exists()
 
+
         def ensure_target_built(lines, msg):
-            lines = [x.strip() for x in lines if 'epJSON schema' in x]
+            lines = [x.strip() for x in lines if "epJSON schema" in x]
             missing_lines = set(EXPECTED_MSGS) - set(lines)
-            assert lines == EXPECTED_MSGS, f"{msg}: missing: {missing_lines}"
+            assert lines == EXPECTED_MSGS, f"{msg}: missing: {missing_lines}: {lines}"
+
+        errors = []
 
         # Build: first time: we get both
         lines = build()
-        ensure_target_built(lines, "Failed on first build")
+        try:
+            ensure_target_built(lines, "Failed on first build")
+        except Exception as e:
+            errors.append(str(e))
 
         # Insert a fake IDD change, we should also get both
-        with open(IDD_IN, 'r') as f:
+        with open(IDD_IN, "r") as f:
             lines = f.read().splitlines()
         ori_lines = lines.copy()
 
-        for i, line in enumerate(lines):
-            if line.startswith(r'\group'):
-                lines.insert(i+1, "")
-                lines.insert(i+2, "FakeObject,")
-                lines.insert(i+3, r" A1; \field Name")
-                break
-        with open(IDD_IN, 'w') as f:
-            f.write('\n'.join(lines) + '\n')
+        lines.append("")
+        lines.append("FakeObject,")
+        with open(IDD_IN, "w") as f:
+            f.write("\n".join(lines) + "\n")
 
         lines = build()
-        ensure_target_built(lines, "Failed after IDD change")
+        try:
+            ensure_target_built(lines, "Failed after IDD change")
+        except Exception as e:
+            errors.append(str(e))
 
-        with open(IDD_IN, 'w') as f:
-            f.write('\n'.join(ori_lines) + '\n')
+        with open(IDD_IN, "w") as f:
+            f.write("\n".join(ori_lines) + "\n")
 
         lines = build()
-        ensure_target_built(lines, "Failed after IDD change revert")
+        try:
+            ensure_target_built(lines, "Failed after IDD change revert")
+        except Exception as e:
+            errors.append(str(e))
 
+        assert not errors, "\n".join(errors)
