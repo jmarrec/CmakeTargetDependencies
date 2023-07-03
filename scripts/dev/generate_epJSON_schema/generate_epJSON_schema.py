@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 from rich import print
 
-print("[bold red]scripts/dev/generate_epJSON_schema/generate_epJSON_schema.py: Generating the epJSON schema![/bold red]")
+print("[bold red]Generating the epJSON schema![/bold red]")
 source_dir_path = Path(sys.argv[1])
 idd_path = source_dir_path / 'Energy+.idd'
 assert idd_path.exists()
